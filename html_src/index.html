@@ -262,17 +262,10 @@ function StartJukebox ()
 			*/
 		});
 
-		$("skin_default").on("click", function()
+		$("skinSelectors").on("click", "#skin_default,#skin_light,#skin_hype", function(evt)
 		{
-			j.skin("default");
-		});
-		$("skin_light").on("click", function()
-		{
-			j.skin("light");
-		});
-		$("skin_hype").on("click", function()
-		{
-			j.skin("hype");
+			var newSkin = evt.target.id.split('_')[1];
+			j.skin(newSkin);
 		});
 	}
 	catch(fatalEx)
