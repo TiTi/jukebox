@@ -107,7 +107,9 @@ main.addAuth() { |s, req, user, pass|
 
   if req.uri.query
     form = Hash[URI.decode_www_form(req.uri.query)];
-    if(form["token"])
+
+    # Trust token over cookie
+    if form["token"]
       token = form["token"];
       luser = library.check_login_token(nil, token);
       if luser
@@ -118,10 +120,12 @@ main.addAuth() { |s, req, user, pass|
           library.update_login_token_session(token, sid);
         end
 
+        # Update HttpSession `s` (infos for current request)
         s.user.replace(luser);
         s.sid.replace(sid);
         user.replace(luser);
         stream.channel_init(luser);
+
         if not isStreamPage
           req.options["Set-Cookie"] = []
           req.options["Set-Cookie"] << Cookie.new({"session" => sid}, nil, "/", Time.now()+(2*7*24*60*60), nil, nil).to_s();
@@ -132,6 +136,7 @@ main.addAuth() { |s, req, user, pass|
     end
   end
 
+  # Check cookies
   if not isStreamPage and req.options["Cookie"]
     cookies = Hash[req.options["Cookie"].split(';').map{ |i| i.strip().split('=')}];
     if cookies["session"]
@@ -155,7 +160,7 @@ main.addAuth() { |s, req, user, pass|
         stream.channel_init(luser);
 
         # Avoid update session last_access for each resources
-        if isMainPage 
+        if isMainPage
           currentSession.updateLastRequest() if currentSession;
           library.update_session_last_connexion(session);
         end
@@ -174,8 +179,9 @@ main.addAuth() { |s, req, user, pass|
         currentSession = sessions.add(sid, user, ip_address, user_agent);
       end
 
-      stream.channel_init(s.user)
-      s.sid.replace(sid)
+      stream.channel_init(s.user);
+      s.sid.replace(sid);
+
       if not isStreamPage
         req.options["Set-Cookie"] = []
         req.options["Set-Cookie"] << Cookie.new({"session" => sid}, nil, "/", Time.now()+(2*7*24*60*60), nil, nil).to_s();
