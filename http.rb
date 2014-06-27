@@ -230,11 +230,8 @@ class HttpSessionStateCollection
   end
 
   def add(sid, user, ip_address, user_agent)
-    #log("Add session " + sid);
-    sessionState = HttpSessionState.new(sid);
-    sessionState.Items["user"] = user;
-    sessionState.Items["ip_address"] = ip_address;
-    sessionState.Items["user_agent"] = user_agent;
+    #debug("Add session " + sid);
+    sessionState = HttpSessionState.new(sid, user, ip_address, user_agent);
     @items.store(sid, sessionState);
     return sessionState;
   end
@@ -244,7 +241,7 @@ class HttpSessionStateCollection
     now = DateTime.now;
     @items.each do |sid, sessionState|
       if sessionState.Timeout < now
-        #log("Removing expired session " + sid);
+        #debug("Removing expired session " + sid);
         @items.delete(sid);
       end
     end
@@ -254,8 +251,12 @@ class HttpSessionStateCollection
     return @items.has_key?(sid);
   end
 
-  def get(sid)
-    return @items[sid];
+  def get(sid, ip_address, user_agent)
+    s = @items[sid];
+    return nil if !s
+    result = nil
+    result = s if s.ip_address == ip_address && s.user_agent == user_agent
+    return result;
   end
 end
 
@@ -263,11 +264,19 @@ class HttpSessionState
   @@SessionDuration = Rational(20 * 60, 86400); # 20min
   @@SlidingExpiration = true;
 
-  attr_reader     :Timeout;
-  attr_accessor   :Items;
+  attr_reader   :Id;
+  attr_reader   :user;
+  attr_reader   :ip_address;
+  attr_reader   :user_agent;
+  attr_reader   :Timeout;
 
-  def initialize(sid)
-    @SessionID = sid;
+  attr_accessor :Items;
+
+  def initialize(sid, user, ip_address, user_agent)
+    @Id = sid;
+    @user = user;
+    @ip_address = ip_address;
+    @user_agent = user_agent;
     @Items = Hash.new;
     self.updateLastRequest();
   end

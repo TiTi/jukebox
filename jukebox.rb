@@ -143,9 +143,9 @@ main.addAuth() { |s, req, user, pass|
       session = cookies["session"];
 
       # Check if the session is known in RAM
-      if sessions.exists(session)
-        currentSession = sessions.get(session);
-        luser = currentSession.Items["user"];
+      currentSession = sessions.get(session, ip_address, user_agent);
+      if currentSession # ip & user_agent matches
+        luser = currentSession.user;
       else # Check in db
         luser = library.check_session(session, ip_address, user_agent);
         if luser
@@ -173,9 +173,16 @@ main.addAuth() { |s, req, user, pass|
     if(user != "void" and library.login(user, pass) )
       sid = library.create_user_session(user, ip_address, user_agent);
 
-      if sessions.exists(sid)
-        currentSession = sessions.get(sid);
-      else
+      currentSession = sessions.get(sid, ip_address, user_agent);
+      # Check user
+      if currentSession && currentSession.user != user
+        # Force to create a new session
+        currentSession = nil;
+        # Following call to sessions.add with an existing sid will erase previous HttpSessionState
+        # from the @items collection. Therefore user will be correctly updated.
+      end
+
+      if currentSession.nil?
         currentSession = sessions.add(sid, user, ip_address, user_agent);
       end
 
