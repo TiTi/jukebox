@@ -627,8 +627,7 @@ SQL
     end
   end
 
-
-  def user_has_right(userId, right, askedMode )
+  def user_has_right(userId, right, askedMode)
     # @TODO flag_other isn't well treated : user must not be right owner or group for other flag
     req = "SELECT 1 FROM rights as R " +
       "LEFT JOIN rights_groups AS RG " +
@@ -652,18 +651,11 @@ SQL
     end
 
     return true if(res)
-    return true if user_is_owner(user, right)
+    return true if user_is_owner(userId, right)
     false;
   end
 
-  def user_is_owner(user, right)
-    begin
-      debug("[DB] user_is_owner 1/2");
-      userId = @db.execute("SELECT u.uid FROM users as U WHERE U.nickname='#{user}' LIMIT 1")[0]["uid"]
-    rescue => e
-      userId = -1
-    end 
-
+  def user_is_owner(userId, right)
     #Split path in order to search for each parents if the user is the owner
     splitedPath = right.split("/")
     currentIndex = 0;
@@ -688,7 +680,7 @@ SQL
         "  OR ( RG.flag_group >= #{Rights_Flag::OWNER} AND GU.uid='#{userId}' )  " +
         "  OR ( R.flag_others >= #{Rights_Flag::OWNER} ))";
       begin
-        debug("[DB] user_is_owner 2/2");
+        debug("[DB] user_is_owner");
         res = @db.execute(req)
       rescue => e
         return false
@@ -699,7 +691,6 @@ SQL
     end
     false;
   end
-
 
   # searching methods here
   def get_nb_songs()
