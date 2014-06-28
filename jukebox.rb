@@ -173,18 +173,9 @@ main.addAuth() { |s, req, user, pass|
     if(user != "void" and library.login(user, pass) )
       sid = library.create_user_session(user, ip_address, user_agent);
 
-      currentSession = sessions.get(sid, ip_address, user_agent);
-      # Check user
-      if currentSession && currentSession.user != user
-        # Force to create a new session
-        currentSession = nil;
-        # Following call to sessions.add with an existing sid will erase previous HttpSessionState
-        # from the @items collection. Therefore user will be correctly updated.
-      end
-
-      if currentSession.nil?
-        currentSession = sessions.add(sid, user, ip_address, user_agent);
-      end
+      # Following call to sessions.add with an existing sid will erase previous HttpSessionState
+      # from the sessions collection. Therefore user will be correctly updated.
+      currentSession = sessions.add(sid, user, ip_address, user_agent);
 
       stream.channel_init(s.user);
       s.sid.replace(sid);
