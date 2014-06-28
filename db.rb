@@ -557,11 +557,12 @@ SQL
     return nil if( not login( nickname, old_pass ))
     debug("[DB] change_user_password select");
     @db.execute("SELECT " +
+                " U.uid, " +
                 " U.right " +
                 "FROM users as U " +
                 "WHERE U.nickname = '#{nickname}' " +
                 "LIMIT 1") do |row|
-      if user_has_right(user, row["right"], Rights_Flag::WRITE ) 
+      if user_has_right(row["uid"], row["right"], Rights_Flag::WRITE ) 
         debug("[DB] change_user_password update");
         @db.execute("UPDATE users SET hash='#{BCrypt::Password.create(new_pass)}' WHERE nickname='#{nickname}'")
         return true
@@ -573,6 +574,7 @@ SQL
   def check_login_token(user, token)
     debug("[DB] check_login_token");
     @db.execute("SELECT " +
+                " U.uid, " +
                 " U.nickname, " +
                 " T.right " +
                 "FROM tokens as T " +
@@ -583,7 +585,7 @@ SQL
                 "INNER JOIN users as U " +
                 "ON LT.uid = U.uid " +
                 "WHERE T.token='#{token}' LIMIT 1") do |row|
-      if user_has_right(user, row["right"], Rights_Flag::EXECUTE ) 
+      if user_has_right(row["uid"], row["right"], Rights_Flag::EXECUTE ) 
           return row["nickname"]
       end
     end
@@ -626,14 +628,7 @@ SQL
   end
 
 
-  def user_has_right(user, right, askedMode )
-    begin
-      debug("[DB] user_has_right 1/2");
-      userId = @db.execute("SELECT u.uid FROM users as U WHERE U.nickname='#{user}' LIMIT 1")[0]["uid"]
-    rescue => e
-      userId = -1
-    end 
-
+  def user_has_right(userId, right, askedMode )
     # @TODO flag_other isn't well treated : user must not be right owner or group for other flag
     req = "SELECT 1 FROM rights as R " +
       "LEFT JOIN rights_groups AS RG " +
@@ -649,7 +644,7 @@ SQL
       "  OR ( R.flag_others & #{askedMode} = #{askedMode} )) " + 
       "LIMIT 1";
     begin
-      debug("[DB] user_has_right 2/2");
+      debug("[DB] user_has_right");
       res = @db.execute(req)[0]
     rescue => e
       error("user_has_right error => #{e}")
