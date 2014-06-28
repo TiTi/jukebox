@@ -229,9 +229,9 @@ class HttpSessionStateCollection
     @items = Hash.new;
   end
 
-  def add(sid, user, ip_address, user_agent)
+  def add(sid, ip_address, user_agent)
     #debug("Add session " + sid);
-    sessionState = HttpSessionState.new(sid, user, ip_address, user_agent);
+    sessionState = HttpSessionState.new(sid, ip_address, user_agent);
     @items.store(sid, sessionState);
     return sessionState;
   end
@@ -265,7 +265,6 @@ class HttpSessionState
   @@SlidingExpiration = true;
 
   attr_reader   :id;
-  attr_reader   :user;
   attr_reader   :ip_address;
   attr_reader   :user_agent;
   attr_reader   :timeout;
@@ -273,9 +272,8 @@ class HttpSessionState
 
   attr_accessor :items;
 
-  def initialize(sid, user, ip_address, user_agent)
+  def initialize(sid, ip_address, user_agent)
     @id = sid;
-    @user = user;
     @ip_address = ip_address;
     @user_agent = user_agent;
     @items = Hash.new;
@@ -410,7 +408,7 @@ class HttpSession < Rev::SSLSocket
       nodes = @root.scan(uri);
 
       depth = nodes.size();
-      # find auth methode
+      # find auth method
       depth.downto(0) { |i|
         if(nodes[i].respond_to?(:on_auth));
           m_auth = nodes[i].method(:on_auth)

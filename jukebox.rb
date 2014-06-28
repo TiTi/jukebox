@@ -83,6 +83,16 @@ main   = HttpNodeMapping.new("html");
 main_src = HttpNodeMapping.new("html_src");
 stream = Stream.new(channelList, library);
 
+
+def createUserSession(user, ip_address, user_agent, library, isStreamPage, req)
+  sid = library.create_user_session(user, ip_address, user_agent);
+  if not isStreamPage
+    req.options["Set-Cookie"] = [];
+    req.options["Set-Cookie"] << Cookie.new({"session" => sid}, nil, "/", Time.now()+(2*7*24*60*60), nil, nil).to_s();
+  end
+  return sid;
+end
+
 sessions = HttpSessionStateCollection.new;
 
 main.addAuth() { |s, req, user, pass|
@@ -92,7 +102,7 @@ main.addAuth() { |s, req, user, pass|
   sessions.removeExpired();
 
   # For now we haven't attach the current request to any HttpSessionState
-  currentSession = nil;
+  session = nil;
 
   # Remove invalid sessions in database
   library.invalidate_sessions();
@@ -105,86 +115,96 @@ main.addAuth() { |s, req, user, pass|
   user_agent = "";
   user_agent = req.options["User-Agent"] if( req.options["User-Agent"] )
 
+
+  # First, check cookies for a session identifier, to leverage server sessions cache
+  if not isStreamPage and req.options["Cookie"]
+    cookies = Hash[req.options["Cookie"].split(';').map{ |i| i.strip().split('=')}];
+    if cookies["session"]
+      sid = cookies["session"];
+      luser = nil;
+
+      # Check if the session is known in RAM, with ip & user_agent matches
+      session = sessions.get(sid, ip_address, user_agent);
+      if session
+        luser = session.get("user");
+      else # Check in db
+        luser = library.check_session(sid, ip_address, user_agent);
+        if luser
+          session = sessions.add(sid, ip_address, user_agent);
+          session.set("user", luser);
+        end
+      end
+    end
+
+    if session
+      session.updateLastRequest();
+      if isMainPage # Hit db only for HTML
+        library.update_session_last_connexion(sid);
+      end
+
+      if luser
+        s.user.replace(luser);
+        s.sid.replace(sid);
+        user.replace(luser);
+        stream.channel_init(luser);
+      end
+    end
+  end
+
+  # Token authentication
   if req.uri.query
     form = Hash[URI.decode_www_form(req.uri.query)];
 
-    # Trust token over cookie
     if form["token"]
       token = form["token"];
-      luser = library.check_token(token);
-      if luser
-        sid = library.get_login_token_session(token);
-        if not sid
-          #TODO check if user has right to create session
-          sid = library.create_user_session(luser, ip_address, user_agent);
-          library.update_login_token_session(token, sid);
-        end
 
+      if session && session.get("token") == token
+        luser = session.get("user");
+        sid = session.id;
+      else
+        luser = library.check_token(token);
+        if luser
+          sid = createUserSession(luser, ip_address, user_agent, library, isStreamPage, req);
+          library.update_login_token_session(token, sid);
+
+          if session.nil?
+            session = sessions.add(sid, ip_address, user_agent);
+          end
+          session.set("user", luser);
+          session.set("token", token);
+        end
+      end
+
+      if luser
         # Update HttpSession `s` (infos for current request)
         s.user.replace(luser);
         s.sid.replace(sid);
         user.replace(luser);
         stream.channel_init(luser);
-
-        if not isStreamPage
-          req.options["Set-Cookie"] = []
-          req.options["Set-Cookie"] << Cookie.new({"session" => sid}, nil, "/", Time.now()+(2*7*24*60*60), nil, nil).to_s();
-          req.options["Set-Cookie"] << Cookie.new({"user" => luser}, nil, "/", Time.now()+(2*7*24*60*60), nil, nil).to_s();
-        end
-        next "token"
       end
+
+      next "token" # Stop
     end
   end
 
-  # Check cookies
-  if not isStreamPage and req.options["Cookie"]
-    cookies = Hash[req.options["Cookie"].split(';').map{ |i| i.strip().split('=')}];
-    if cookies["session"]
-      session = cookies["session"];
-
-      # Check if the session is known in RAM
-      currentSession = sessions.get(session, ip_address, user_agent);
-      if currentSession # ip & user_agent matches
-        luser = currentSession.user;
-      else # Check in db
-        luser = library.check_session(session, ip_address, user_agent);
-        if luser
-          currentSession = sessions.add(session, luser, ip_address, user_agent);
-        end
-      end
-
-      if luser
-        s.user.replace(luser);
-        s.sid.replace(session);
-        user.replace(luser);
-        stream.channel_init(luser);
-
-        # Avoid update session last_access for each resources
-        if isMainPage
-          currentSession.updateLastRequest() if currentSession;
-          library.update_session_last_connexion(session);
-        end
-        next "cookie"
-      end
-    end
+  # Don't redo HTTP authent.
+  if session
+    next "cookie";
   end
 
+  # HTTP authentication
   if pass
     if(user != "void" and library.login(user, pass) )
-      sid = library.create_user_session(user, ip_address, user_agent);
+      sid = createUserSession(user, ip_address, user_agent, library, isStreamPage, req);
 
       # Following call to sessions.add with an existing sid will erase previous HttpSessionState
       # from the sessions collection. Therefore user will be correctly updated.
-      currentSession = sessions.add(sid, user, ip_address, user_agent);
+      session = sessions.add(sid, ip_address, user_agent);
+      session.set("user", user);
 
       stream.channel_init(s.user);
       s.sid.replace(sid);
 
-      if not isStreamPage
-        req.options["Set-Cookie"] = []
-        req.options["Set-Cookie"] << Cookie.new({"session" => sid}, nil, "/", Time.now()+(2*7*24*60*60), nil, nil).to_s();
-        req.options["Set-Cookie"] << Cookie.new({"user" => user}, nil, "/", Time.now()+(2*7*24*60*60), nil, nil).to_s();
-      end
       next "httpAuth"
     end
   end
