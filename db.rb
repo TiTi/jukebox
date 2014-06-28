@@ -571,8 +571,8 @@ SQL
     false
   end
 
-  def check_login_token(user, token)
-    debug("[DB] check_login_token");
+  def check_token(token)
+    debug("[DB] check_token");
     @db.execute("SELECT " +
                 " U.uid, " +
                 " U.nickname, " +

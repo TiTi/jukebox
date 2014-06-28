@@ -111,7 +111,7 @@ main.addAuth() { |s, req, user, pass|
     # Trust token over cookie
     if form["token"]
       token = form["token"];
-      luser = library.check_login_token(nil, token);
+      luser = library.check_token(token);
       if luser
         sid = library.get_login_token_session(token);
         if not sid
