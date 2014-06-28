@@ -240,7 +240,7 @@ class HttpSessionStateCollection
   def removeExpired()
     now = DateTime.now;
     @items.each do |sid, sessionState|
-      if sessionState.Timeout < now
+      if sessionState.timeout < now
         #debug("Removing expired session " + sid);
         @items.delete(sid);
       end
@@ -264,28 +264,37 @@ class HttpSessionState
   @@SessionDuration = Rational(20 * 60, 86400); # 20min
   @@SlidingExpiration = true;
 
-  attr_reader   :Id;
+  attr_reader   :id;
   attr_reader   :user;
   attr_reader   :ip_address;
   attr_reader   :user_agent;
-  attr_reader   :Timeout;
+  attr_reader   :timeout;
+  attr_reader   :last_request;
 
-  attr_accessor :Items;
+  attr_accessor :items;
 
   def initialize(sid, user, ip_address, user_agent)
-    @Id = sid;
+    @id = sid;
     @user = user;
     @ip_address = ip_address;
     @user_agent = user_agent;
-    @Items = Hash.new;
+    @items = Hash.new;
     self.updateLastRequest();
   end
 
   def updateLastRequest()
-    @LastRequest = DateTime.now;
+    @last_request = DateTime.now;
     if (@@SlidingExpiration)
-      @Timeout = @LastRequest + @@SessionDuration;
+      @timeout = @last_request + @@SessionDuration;
     end
+  end
+
+  def get(key)
+    return @items[key];
+  end
+
+  def set(key, value)
+    @items[key] = value;
   end
 end
 
